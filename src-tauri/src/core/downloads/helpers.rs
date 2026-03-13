@@ -301,6 +301,7 @@ pub fn _get_client_for_item(
     header_map: &HeaderMap,
 ) -> Result<reqwest::Client, String> {
     let mut client_builder = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(30))
         .http2_keep_alive_timeout(Duration::from_secs(15))
         .default_headers(header_map.clone());
 
@@ -348,10 +349,10 @@ pub async fn _get_file_size(
 ) -> Result<u64, Box<dyn std::error::Error>> {
     let resp = client.head(url).send().await?;
     if !resp.status().is_success() {
-        return Err(format!("Failed to get file size: HTTP status {}", resp.status()).into());
+        return Err(
+            format!("Failed to get file size from {url}: HTTP status {}", resp.status()).into(),
+        );
     }
-    // this is buggy, always return 0 for HEAD request
-    // Ok(resp.content_length().unwrap_or(0))
 
     match resp.headers().get("content-length") {
         Some(value) => {
@@ -361,6 +362,34 @@ pub async fn _get_file_size(
         }
         None => Ok(0),
     }
+}
+
+/// Gets the file size for `url` by sending a HEAD request, trying the Jan mirror first
+/// and falling back to the original URL on failure. Unlike `_get_file_size`, which always
+/// contacts the origin, this function matches the mirror-first strategy of
+/// `_get_maybe_resume_with_fallback` so that a temporarily unavailable origin server does
+/// not abort the whole download batch before the mirror is ever tried.
+pub async fn _get_file_size_with_fallback(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<u64, Box<dyn std::error::Error>> {
+    if let Some(mirror_url) = convert_to_mirror_url(url) {
+        log::info!("Attempting to get file size from Jan mirror: {}", mirror_url);
+        match _get_file_size(client, &mirror_url).await {
+            Ok(size) => {
+                log::info!("Got file size from Jan mirror");
+                return Ok(size);
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to get file size from Jan mirror: {}. Falling back to original URL...",
+                    e
+                );
+            }
+        }
+    }
+    log::info!("Getting file size from original URL: {}", url);
+    _get_file_size(client, url).await
 }
 
 // ===== MAIN DOWNLOAD FUNCTIONS =====
@@ -391,7 +420,7 @@ pub async fn _download_files_internal(
     let mut file_sizes: HashMap<String, u64> = HashMap::new();
     for item in items.iter() {
         let client = _get_client_for_item(item, &header_map).map_err(err_to_string)?;
-        let size = _get_file_size(&client, &item.url)
+        let size = _get_file_size_with_fallback(&client, &item.url)
             .await
             .map_err(err_to_string)?;
         file_sizes.insert(item.url.clone(), size);
@@ -586,10 +615,12 @@ async fn download_single_file(
 
     let (resp, actual_url) = if should_resume {
         let downloaded_size = tmp_save_path.metadata().map_err(err_to_string)?.len();
-        match _get_maybe_resume(&client, &item.url, downloaded_size).await {
-            Ok(resp) => {
+        // Try to resume via the mirror first, then the original URL.
+        // Pass `downloaded_size` so we keep the partially downloaded data.
+        match _get_maybe_resume_with_fallback(&client, &item.url, downloaded_size).await {
+            Ok((resp, actual_url)) => {
                 log::info!(
-                    "Resume download: {}, already downloaded {} bytes",
+                    "Resuming download: {}, already downloaded {} bytes",
                     item.url,
                     downloaded_size
                 );
@@ -609,11 +640,11 @@ async fn download_single_file(
                 };
                 app.emit(&evt_name, evt).unwrap();
 
-                (resp, item.url.clone())
+                (resp, actual_url)
             }
             Err(e) => {
-                // fallback to normal download with proxy support
-                log::warn!("Failed to resume download: {e}");
+                // Resume not supported by any server — restart from the beginning.
+                log::warn!("Failed to resume download: {e}. Restarting from beginning.");
                 should_resume = false;
                 _get_maybe_resume_with_fallback(&client, &item.url, 0).await?
             }
