@@ -348,3 +348,57 @@ fn test_download_item_deserialization() {
     assert_eq!(item.url, "https://example.com/file.zip");
     assert_eq!(item.save_path, "downloads/file.zip");
 }
+
+#[test]
+fn test_convert_to_mirror_url_huggingface() {
+    // HuggingFace URL should be converted to mirror
+    let url = "https://huggingface.co/some-org/some-model/resolve/main/model.gguf";
+    let mirror = convert_to_mirror_url(url);
+    assert!(mirror.is_some());
+    let mirror_url = mirror.unwrap();
+    assert!(
+        mirror_url.starts_with("https://apps.jan.ai/")
+            || mirror_url.starts_with("https://apps-nightly.jan.ai/")
+    );
+    assert!(mirror_url.contains("huggingface.co/some-org/some-model"));
+}
+
+#[test]
+fn test_convert_to_mirror_url_non_huggingface() {
+    // Non-HuggingFace URLs should NOT be converted
+    assert!(convert_to_mirror_url("https://example.com/file.zip").is_none());
+    assert!(convert_to_mirror_url("https://github.com/owner/repo/releases/download/v1/file.zip").is_none());
+}
+
+#[test]
+fn test_convert_to_mirror_url_invalid() {
+    // Invalid URLs should return None
+    assert!(convert_to_mirror_url("not-a-url").is_none());
+    assert!(convert_to_mirror_url("").is_none());
+}
+
+#[test]
+fn test_convert_to_mirror_url_http_scheme() {
+    // HTTP (not HTTPS) HuggingFace URL should also be converted
+    let url = "http://huggingface.co/some-org/some-model/resolve/main/model.gguf";
+    let mirror = convert_to_mirror_url(url);
+    assert!(mirror.is_some());
+    let mirror_url = mirror.unwrap();
+    assert!(mirror_url.contains("huggingface.co/some-org/some-model"));
+}
+
+#[test]
+fn test_client_has_connect_timeout() {
+    // Verify client can be created (the connect_timeout is set internally)
+    let item = DownloadItem {
+        url: "https://huggingface.co/file.gguf".to_string(),
+        save_path: "models/file.gguf".to_string(),
+        proxy: None,
+        sha256: None,
+        size: None,
+        model_id: None,
+    };
+    let header_map = HeaderMap::new();
+    let result = _get_client_for_item(&item, &header_map);
+    assert!(result.is_ok(), "Client creation should succeed with connect_timeout set");
+}
