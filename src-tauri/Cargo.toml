@@ -35,11 +35,12 @@ hardware = ["dep:tauri-plugin-hardware"]
 deep-link = ["dep:tauri-plugin-deep-link"]
 mlx = ["dep:tauri-plugin-mlx"]
 docker = ["dep:bollard"]
+openclaw = ["dep:tokio-tungstenite"]
 desktop = [
     "deep-link",
     "hardware",
     "mlx",
-    "docker"
+    "docker",
 ]
 mobile = [
     "tauri/protocol-asset",
@@ -119,7 +120,7 @@ ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 futures = "0.3"
 hostname = "0.4"
 base64 = "0.22"
-tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"], optional = true }
 glob = "0.3"
 clap = { version = "4", features = ["derive"] }
 dialoguer = { version = "0.11", optional = true }

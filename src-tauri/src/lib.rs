@@ -1,5 +1,7 @@
 pub mod core;
+#[cfg(feature = "openclaw")]
 pub mod openclaw_cli;
+#[cfg(feature = "openclaw")]
 pub use core::openclaw::OpenClawState;
 
 
@@ -62,87 +64,97 @@ pub fn run() {
         app_builder = app_builder.plugin(tauri_plugin_hardware::init());
     }
 
-    // Desktop: include updater commands
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    let app_builder = app_builder.invoke_handler(tauri::generate_handler![
-        // FS commands - Deperecate soon
-        core::filesystem::commands::join_path,
-        core::filesystem::commands::mkdir,
-        core::filesystem::commands::exists_sync,
-        core::filesystem::commands::readdir_sync,
-        core::filesystem::commands::read_file_sync,
-        core::filesystem::commands::rm,
-        core::filesystem::commands::mv,
-        core::filesystem::commands::file_stat,
-        core::filesystem::commands::write_file_sync,
-        core::filesystem::commands::write_yaml,
-        core::filesystem::commands::read_yaml,
-        core::filesystem::commands::decompress,
-        core::filesystem::commands::open_dialog,
-        core::filesystem::commands::save_dialog,
-        // App configuration commands
-        core::app::commands::get_app_configurations,
-        core::app::commands::get_user_home_path,
-        core::app::commands::update_app_configuration,
-        core::app::commands::get_jan_data_folder_path,
-        core::app::commands::get_configuration_file_path,
-        core::app::commands::default_data_folder_path,
-        core::app::commands::change_app_data_folder,
-        core::app::commands::app_token,
-        // Extension commands
-        core::extensions::commands::get_jan_extensions_path,
-        core::extensions::commands::install_extensions,
-        core::extensions::commands::get_active_extensions,
-        // System commands
-        core::system::commands::relaunch,
-        core::system::commands::open_app_directory,
-        core::system::commands::open_file_explorer,
-        core::system::commands::factory_reset,
-        core::system::commands::read_logs,
-        core::system::commands::is_library_available,
-        core::system::commands::launch_claude_code_with_config,
-        core::system::commands::check_jan_cli_installed,
-        core::system::commands::install_jan_cli,
-        core::system::commands::uninstall_jan_cli,
-        core::system::commands::clear_claude_code_env,
-        // Server commands
-        core::server::commands::start_server,
-        core::server::commands::stop_server,
-        core::server::commands::get_server_status,
-        // Remote provider commands
-        core::server::remote_provider_commands::register_provider_config,
-        core::server::remote_provider_commands::unregister_provider_config,
-        core::server::remote_provider_commands::get_provider_config,
-        core::server::remote_provider_commands::list_provider_configs,
-        // MCP commands
-        core::mcp::commands::get_tools,
-        core::mcp::commands::call_tool,
-        core::mcp::commands::cancel_tool_call,
-        core::mcp::commands::restart_mcp_servers,
-        core::mcp::commands::get_connected_servers,
-        core::mcp::commands::save_mcp_configs,
-        core::mcp::commands::get_mcp_configs,
-        core::mcp::commands::activate_mcp_server,
-        core::mcp::commands::deactivate_mcp_server,
-        core::mcp::commands::check_jan_browser_extension_connected,
-        // Threads
-        core::threads::commands::list_threads,
-        core::threads::commands::create_thread,
-        core::threads::commands::modify_thread,
-        core::threads::commands::delete_thread,
-        core::threads::commands::list_messages,
-        core::threads::commands::create_message,
-        core::threads::commands::modify_message,
-        core::threads::commands::delete_message,
-        core::threads::commands::get_thread_assistant,
-        core::threads::commands::create_thread_assistant,
-        core::threads::commands::modify_thread_assistant,
-        // Download
-        core::downloads::commands::download_files,
-        core::downloads::commands::cancel_download_task,
-        // Custom updater commands (desktop only)
-        core::updater::commands::check_for_app_updates,
-        core::updater::commands::is_update_available,
+    // Desktop: include updater commands.
+    // Defines the set of handlers common to all desktop builds; openclaw commands
+    // are appended only when the "openclaw" feature is enabled.
+    macro_rules! desktop_invoke_handler {
+        ($($extra:path),* $(,)?) => {
+            tauri::generate_handler![
+                // FS commands - Deprecated soon
+                core::filesystem::commands::join_path,
+                core::filesystem::commands::mkdir,
+                core::filesystem::commands::exists_sync,
+                core::filesystem::commands::readdir_sync,
+                core::filesystem::commands::read_file_sync,
+                core::filesystem::commands::rm,
+                core::filesystem::commands::mv,
+                core::filesystem::commands::file_stat,
+                core::filesystem::commands::write_file_sync,
+                core::filesystem::commands::write_yaml,
+                core::filesystem::commands::read_yaml,
+                core::filesystem::commands::decompress,
+                core::filesystem::commands::open_dialog,
+                core::filesystem::commands::save_dialog,
+                // App configuration commands
+                core::app::commands::get_app_configurations,
+                core::app::commands::get_user_home_path,
+                core::app::commands::update_app_configuration,
+                core::app::commands::get_jan_data_folder_path,
+                core::app::commands::get_configuration_file_path,
+                core::app::commands::default_data_folder_path,
+                core::app::commands::change_app_data_folder,
+                core::app::commands::app_token,
+                // Extension commands
+                core::extensions::commands::get_jan_extensions_path,
+                core::extensions::commands::install_extensions,
+                core::extensions::commands::get_active_extensions,
+                // System commands
+                core::system::commands::relaunch,
+                core::system::commands::open_app_directory,
+                core::system::commands::open_file_explorer,
+                core::system::commands::factory_reset,
+                core::system::commands::read_logs,
+                core::system::commands::is_library_available,
+                core::system::commands::launch_claude_code_with_config,
+                core::system::commands::check_jan_cli_installed,
+                core::system::commands::install_jan_cli,
+                core::system::commands::uninstall_jan_cli,
+                core::system::commands::clear_claude_code_env,
+                // Server commands
+                core::server::commands::start_server,
+                core::server::commands::stop_server,
+                core::server::commands::get_server_status,
+                // Remote provider commands
+                core::server::remote_provider_commands::register_provider_config,
+                core::server::remote_provider_commands::unregister_provider_config,
+                core::server::remote_provider_commands::get_provider_config,
+                core::server::remote_provider_commands::list_provider_configs,
+                // MCP commands
+                core::mcp::commands::get_tools,
+                core::mcp::commands::call_tool,
+                core::mcp::commands::cancel_tool_call,
+                core::mcp::commands::restart_mcp_servers,
+                core::mcp::commands::get_connected_servers,
+                core::mcp::commands::save_mcp_configs,
+                core::mcp::commands::get_mcp_configs,
+                core::mcp::commands::activate_mcp_server,
+                core::mcp::commands::deactivate_mcp_server,
+                core::mcp::commands::check_jan_browser_extension_connected,
+                // Threads
+                core::threads::commands::list_threads,
+                core::threads::commands::create_thread,
+                core::threads::commands::modify_thread,
+                core::threads::commands::delete_thread,
+                core::threads::commands::list_messages,
+                core::threads::commands::create_message,
+                core::threads::commands::modify_message,
+                core::threads::commands::delete_message,
+                core::threads::commands::get_thread_assistant,
+                core::threads::commands::create_thread_assistant,
+                core::threads::commands::modify_thread_assistant,
+                // Download
+                core::downloads::commands::download_files,
+                core::downloads::commands::cancel_download_task,
+                // Custom updater commands (desktop only)
+                core::updater::commands::check_for_app_updates,
+                core::updater::commands::is_update_available
+                $(, $extra)*
+            ]
+        }
+    }
+
+    #[cfg(all(not(any(target_os = "android", target_os = "ios")), feature = "openclaw"))]
+    let app_builder = app_builder.invoke_handler(desktop_invoke_handler![
         // OpenClaw commands
         core::openclaw::commands::openclaw_check_dependencies,
         core::openclaw::commands::openclaw_check_port,
@@ -221,6 +233,9 @@ pub fn run() {
         core::openclaw::commands::tunnel_start_cloudflared,
         core::openclaw::commands::tunnel_stop_cloudflared,
     ]);
+
+    #[cfg(all(not(any(target_os = "android", target_os = "ios")), not(feature = "openclaw")))]
+    let app_builder = app_builder.invoke_handler(desktop_invoke_handler![]);
 
     // Mobile: no updater commands
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -317,8 +332,10 @@ pub fn run() {
             background_cleanup_handle: Arc::new(Mutex::new(None)),
             mcp_server_pids: Arc::new(Mutex::new(HashMap::new())),
             provider_configs: Arc::new(Mutex::new(HashMap::new())),
-        })
-        .manage(OpenClawState::default())
+        });
+    #[cfg(feature = "openclaw")]
+    let app = app.manage(OpenClawState::default());
+    let app = app
         .setup(|app| {
             app.handle().plugin(
                 tauri_plugin_log::Builder::default()
@@ -458,6 +475,7 @@ pub fn run() {
                     }
 
                     // OpenClaw gateway cleanup
+                    #[cfg(feature = "openclaw")]
                     {
                         use crate::core::openclaw::sandbox::Sandbox;
                         use crate::core::openclaw::OpenClawState;
