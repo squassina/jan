@@ -41,7 +41,6 @@ desktop = [
     "hardware",
     "mlx",
     "docker",
-    "openclaw",
 ]
 mobile = [
     "tauri/protocol-asset",
